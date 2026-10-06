@@ -3,7 +3,7 @@
 	url = https://github.com/koreader/koreader-base.git
 [submodule "platform/android/luajit-launcher"]
 	path = platform/android/luajit-launcher
-	url = https://github.com/koreader/android-luajit-launcher.git
+	url = https://github.com/AmritSaroe/android-luajit-launcher.git
 [submodule "test"]
 	path = test
 	url = https://github.com/koreader/test-data.git

@@ -137,6 +137,15 @@ end
 
 function Device:init()
     self.screen = require("ffi/framebuffer_android"):new{device = self, debug = logger.dbg}
+    
+    local orig_toggleNightMode = self.screen.toggleNightMode
+    if orig_toggleNightMode then
+        self.screen.toggleNightMode = function(this, ...)
+            orig_toggleNightMode(this, ...)
+            self:syncWindowBackgroundColor()
+        end
+    end
+
     self.powerd = require("device/android/powerd"):new{device = self}
 
     local event_map = dofile("frontend/device/android/event_map.lua")
@@ -309,8 +318,72 @@ function Device:init()
     Generic.init(self)
 end
 
+function Device:syncWindowBackgroundColor()
+    if not android.setWindowBackgroundColor then return end
+
+    local bg_hex = nil
+    local lfs = require("libs/libkoreader-lfs")
+    local DataStorage = require("datastorage")
+    local appearance_settings_path = DataStorage:getSettingsDir() .. "/appearance.lua"
+
+    if lfs.attributes(appearance_settings_path, "mode") == "file" then
+        local ok, LuaSettings = pcall(require, "luasettings")
+        if ok then
+            local ok2, appearance = pcall(LuaSettings.open, LuaSettings, appearance_settings_path)
+            if ok2 and appearance then
+                local is_night = self.screen.night_mode
+                local alt_night = appearance:readSetting("ui_background_color_alt_night", false)
+                
+                -- Only use the plugin's color if it actually has a saved hex value
+                if is_night and alt_night then
+                    bg_hex = appearance:readSetting("ui_background_color_night_hex")
+                    if not bg_hex then bg_hex = "#000000" end
+                else
+                    bg_hex = appearance:readSetting("ui_background_color_hex")
+                    -- If the setting is nil and the file exists, it might just be the default white theme
+                    if not bg_hex then bg_hex = "#FFFFFF" end
+                    
+                    if is_night then
+                        local invert_bg = appearance:readSetting("ui_background_color_inverted", true)
+                        if invert_bg then
+                            -- manually invert hex
+                            local r = tonumber(bg_hex:sub(2, 3), 16) or 255
+                            local g = tonumber(bg_hex:sub(4, 5), 16) or 255
+                            local b = tonumber(bg_hex:sub(6, 7), 16) or 255
+                            bg_hex = string.format("#%02X%02X%02X", 255 - r, 255 - g, 255 - b)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if bg_hex then
+        local r = tonumber(bg_hex:sub(2, 3), 16)
+        local g = tonumber(bg_hex:sub(4, 5), 16)
+        local b = tonumber(bg_hex:sub(6, 7), 16)
+        if r and g and b then
+            local bit = require("bit")
+            local argb = bit.bor(0xFF000000, bit.lshift(r, 16), bit.lshift(g, 8), b)
+            android.setWindowBackgroundColor(argb)
+            return
+        end
+    end
+
+    -- Fallback to standard KOReader night mode / day mode
+    if self.screen.night_mode then
+        android.setWindowBackgroundColor(0xFF000000)
+    else
+        android.setWindowBackgroundColor(0xFFFFFFFF)
+    end
+end
+
 function Device:UIManagerReady(uimgr)
     UIManager = uimgr
+    UIManager:registerListener("ChangeBackgroundColor", function() self:syncWindowBackgroundColor() end)
+    UIManager:registerListener("RecomputeAllColors", function() self:syncWindowBackgroundColor() end)
+    UIManager:registerListener("ApplyTheme", function() self:syncWindowBackgroundColor() end)
+    self:syncWindowBackgroundColor()
 end
 
 function Device:initNetworkManager(NetworkMgr)
