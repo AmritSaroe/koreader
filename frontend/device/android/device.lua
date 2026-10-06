@@ -137,7 +137,7 @@ end
 
 function Device:init()
     self.screen = require("ffi/framebuffer_android"):new{device = self, debug = logger.dbg}
-    
+
     local orig_toggleNightMode = self.screen.toggleNightMode
     if orig_toggleNightMode then
         self.screen.toggleNightMode = function(this, ...)
@@ -322,7 +322,6 @@ function Device:syncWindowBackgroundColor()
     if not android.setWindowBackgroundColor then return end
 
     local bg_hex = nil
-    local lfs = require("libs/libkoreader-lfs")
     local DataStorage = require("datastorage")
     local appearance_settings_path = DataStorage:getSettingsDir() .. "/appearance.lua"
 
@@ -333,7 +332,7 @@ function Device:syncWindowBackgroundColor()
             if ok2 and appearance then
                 local is_night = self.screen.night_mode
                 local alt_night = appearance:readSetting("ui_background_color_alt_night", false)
-                
+
                 -- Only use the plugin's color if it actually has a saved hex value
                 if is_night and alt_night then
                     bg_hex = appearance:readSetting("ui_background_color_night_hex")
@@ -342,7 +341,7 @@ function Device:syncWindowBackgroundColor()
                     bg_hex = appearance:readSetting("ui_background_color_hex")
                     -- If the setting is nil and the file exists, it might just be the default white theme
                     if not bg_hex then bg_hex = "#FFFFFF" end
-                    
+
                     if is_night then
                         local invert_bg = appearance:readSetting("ui_background_color_inverted", true)
                         if invert_bg then
